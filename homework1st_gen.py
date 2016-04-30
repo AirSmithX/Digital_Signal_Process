@@ -138,7 +138,7 @@ plt.plot(f_, c_)
 plt.subplot(313)
 plt.plot(w_, d_)
 
-plt.show()
+#plt.show()
 
 
 #-----------------------------------------
@@ -168,7 +168,6 @@ freq_ls = mathtools.frequency_estimate_ls(st, 3)
 #-----------------------------------------
 #x = mathtools.autocorrelationMatrix(cnt_)
 freq_svd = mathtools.frequency_estimate_svd(cxt, len(cxt)/5)
-#print
 
 #-----------------------------------------
 # STEP 7:
@@ -183,11 +182,13 @@ print "ml", freq_ml, "svd", freq_svd, "ls", freq_ls
 # STEP 8:
 # TO DO: analyze the wave signal, extract its notes
 #-----------------------------------------
-
+notations,rate = mathtools.musicNotation('Ramin Djawadi - For the Realm.wav')
 
 
 #-----------------------------------------
 # STEP 9:
 # TO DO: reform it into piano
 #-----------------------------------------
-
+mathtools.genMusic(notations, rate)
+print "generate Music OK please see <out.wav>"
+plt.show()

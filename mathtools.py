@@ -3,7 +3,8 @@ __author__ = 'Air'
 import numpy as np
 import scipy.signal as sg
 import scipy.fftpack as scifft
-
+import wave
+from math import log
 
 '''
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -141,21 +142,28 @@ def frequency_estimate_ls(x, len_):
     #pool *= 10000
     #x_ *= 1000000
     a = np.linalg.lstsq(pool, x_)[0]
-    #print a[0], a[1], a[2]
     result_ = a[0]
     return result_
 
 def frequency_estimate_svd(x, p):
-    x_ = scifft.hilbert(x)
-    x_ = noiseWhite(x_)
+    #x_ = scifft.hilbert(x)
+    x_ = x[:]
+    #x_ = noiseWhite(x_)
     datalen = len(x_)
     x_ = corr(x_, p)
     w, v = np.linalg.eig(x_)
-    vec = v[np.argmax(w)]
-    vec_fft = np.fft.fft(vec)
-    fft_max = np.argmax(vec_fft)
-    #TODO
-    return fft_max
+    Index = np.argmax(w)
+    Px = np.zeros(p)
+    for i in range(0, p):
+        if i != Index:
+            Px += abs(np.fft.fft(v[i, :]))
+    #Px = -20*np.log10(Px)
+    #vec = v[np.argmax(w)]
+    #vec_fft = np.fft.fft(vec)
+    #fft_max = np.argmax(vec_fft)
+    freqP = np.fft.fftfreq(len(v[0, :]))
+    fft_max = freqP[np.argmax(Px)]
+    return fft_max*10
 
 
 def frequency_estimate_ml(x):
@@ -168,3 +176,88 @@ def frequency_estimate_ml(x):
     averge_ = np.average(x_)
     result_ = abs(averge_)
     return result_
+
+
+#notation extractor
+def musicNotation(fileName):
+    #open a wave file, and return a Wave_read object
+    f = wave.open(fileName, "rb")
+    #read the wave's format infomation,and return a tuple
+    params = f.getparams()
+    #get the info
+    nchannels, sampwidth, framerate, nframes = params[:4]
+    #Reads and returns nframes of audio, as a string of bytes.
+    str_data = f.readframes(nframes)
+    #close the stream
+    f.close()
+    #turn the wave's data to array
+    wave_data = np.fromstring(str_data, dtype = np.short)
+    #for the data is stereo,and format is LRLRLR...
+    #shape the array to n*2(-1 means fit the y coordinate)
+    wave_data.shape = -1, 2
+    #transpose the data
+    wave_data = wave_data.T
+    #calculate the time bar
+    time = np.arange(0, nframes) * (1.0/framerate)
+
+    framePerSecond = 1.0/framerate
+    #every notaion we should take such number frames
+    peace = 93.0
+    framePerNotaion = int(np.floor((60.0/peace)/framePerSecond))
+
+    realeased_notations = []
+    note_list = ['0','0','1','2','2','3','3','4','4','5','6','6']
+    for i in range(0, nframes, framePerNotaion):
+        symbol = wave_data[0,i:i+framePerNotaion]
+        symbolFFT = np.fft.fft(symbol)
+        symbolFFT = abs(symbolFFT)
+        Index = np.argmax(symbolFFT)
+        freq = np.fft.fftfreq(len(symbolFFT))
+        freMax = abs(freq[Index])
+        if freMax > 0:
+            #interval = int(round(log(freMax/440.0, 1.059463))) % 12
+            interval = int(round(log((freMax*framerate)/440.0, 1.059463))) % 12
+            realeased_notations.append(note_list[interval])
+        #else:
+        #    realeased_notations.append('7')
+    return realeased_notations,framerate
+
+def genMusic(realeased_notations,framerate):
+    #waveBase = np.zeros(7*54400)
+    #waveBase.shape = 7, -1
+    startPoint = 600
+    endPoint = 30000
+    waveBase = []
+    for i in range(1,8):
+        name = str(i) + '.wav'
+        f = wave.open(name, "rb")
+        params = f.getparams()
+        _1, _2, framerate, nframes = params[:4]
+        str_data = f.readframes(nframes)
+        f.close()
+        basicWave = np.fromstring(str_data, dtype = np.short)
+        basicWave.shape = -1, 2
+        #transpose the data
+        basicWave = basicWave.T
+        basicWave = basicWave[0, startPoint:endPoint]
+        #waveBase[i-1,:]=basicWave
+        waveBase.append(basicWave.T)
+
+    #waveBase.append(list(np.zeros(len(waveBase[0]))))
+
+    music = []
+    for i in realeased_notations:
+        mvox = list(waveBase[int(i)][:])
+        music = music + mvox
+
+    music = np.array(music)
+
+    f = wave.open(r"out.wav", "wb")
+    f.setnchannels(1)
+    f.setsampwidth(2)
+    f.setframerate(framerate)
+    f.writeframes(music.tostring())
+    f.close()
+
+
+
